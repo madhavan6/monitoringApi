@@ -14,24 +14,45 @@ function toBase64(fileBuffer) {
 }
 
 // Save base64 image to the local file system
-function saveBase64Image(base64String, folder = 'public/images') {
+function saveBase64Image(base64String, options = {}) {
+  const {
+    rootFolder = 'public/images',
+    projectID = 'unknownProject',
+    taskID = 'unknownTask',
+    timestamp = new Date().toISOString()
+  } = options;
+
+  // Match base64 string format
   const matches = base64String.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
   if (!matches) throw new Error('Invalid base64 string');
 
+  // Extract file extension and base64 data
   const ext = matches[1].split('/')[1];
   const data = matches[2];
   const fileName = `${uuidv4()}.${ext}`;
-  const filePath = path.join(folder, fileName);
 
-  // Ensure the folder exists
-  if (!fs.existsSync(folder)) {
-    fs.mkdirSync(folder, { recursive: true });
+  // Define folder path based on projectID, taskID, and date
+  const date = new Date(timestamp).toISOString().split('T')[0]; // YYYY-MM-DD
+  const folderPath = path.join(
+    rootFolder,
+    `ProjectID_${projectID}`,
+    `TaskID_${taskID}`,
+    date
+  );
+  
+  
+
+  // Create directory if it doesn't exist
+  if (!fs.existsSync(folderPath)) {
+    fs.mkdirSync(folderPath, { recursive: true });
   }
 
-  // Write the base64 data to a file
+  // Define file path and write the image data to the file system
+  const filePath = path.join(folderPath, fileName);
   fs.writeFileSync(filePath, data, { encoding: 'base64' });
 
-  return `/images/${fileName}`; // URL to access the image
+  // Return relative file path for use in the database
+  return filePath.replace(/^public/, '').replace(/\\/g, '/');
 }
 
 // Convert image URL to base64 (supports Google Drive)
@@ -51,6 +72,7 @@ async function fetchImageAsBase64(imageURL) {
       }
     }
 
+    // Fetch image as base64
     const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
     return toBase64(response.data);
   } catch (err) {
@@ -62,6 +84,15 @@ async function fetchImageAsBase64(imageURL) {
 // Helper function to format the datetime string into MySQL-compatible format
 function formatDatetimeForMySQL(datetime) {
   return datetime.replace('T', ' ').split('.')[0]; // Remove 'Z' and milliseconds
+}
+
+// Helper to ensure valid JSON
+function tryParseJson(data) {
+  try {
+    return typeof data === 'string' ? JSON.stringify(JSON.parse(data)) : JSON.stringify(data);
+  } catch (e) {
+    return JSON.stringify({});
+  }
 }
 
 // POST route: insert workDiary entry
@@ -102,27 +133,55 @@ router.post('/', upload.fields([
     // Screenshot base64 or file
     if (req.files && req.files['screenshot']) {
       const base64 = toBase64(req.files['screenshot'][0].buffer);
-      imageURLToStore = saveBase64Image(`data:image/png;base64,${base64}`);
+      console.log("Screenshot Base64 Data: ", base64); // Log the screenshot base64 data
+      imageURLToStore = saveBase64Image(`data:image/png;base64,${base64}`, {
+        projectID,
+        taskID,
+        timestamp: screenshotTimeStamp
+      });
     } else if (imageURL && imageURL.startsWith('data:image')) {
-      // If imageURL is base64 string
-      const sanitizedImageURL = imageURL.replace(/^data:image\/[a-zA-Z]+;base64,/, ''); // Remove prefix
-      imageURLToStore = saveBase64Image(`data:image/png;base64,${sanitizedImageURL}`);
+      const base64 = imageURL.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+      console.log("Screenshot Base64 URL Data: ", base64); // Log the base64 URL data
+      imageURLToStore = saveBase64Image(`data:image/png;base64,${base64}`, {
+        projectID,
+        taskID,
+        timestamp: screenshotTimeStamp
+      });
     } else if (imageURL) {
       const base64 = await fetchImageAsBase64(imageURL);
-      imageURLToStore = saveBase64Image(`data:image/png;base64,${base64}`);
+      console.log("Screenshot Base64 Fetched Data: ", base64); // Log the fetched base64 data
+      imageURLToStore = saveBase64Image(`data:image/png;base64,${base64}`, {
+        projectID,
+        taskID,
+        timestamp: screenshotTimeStamp
+      });
     }
 
     // Thumbnail base64 or file
     if (req.files && req.files['thumbnail']) {
       const base64 = toBase64(req.files['thumbnail'][0].buffer);
-      thumbNailURLToStore = saveBase64Image(`data:image/png;base64,${base64}`);
+      console.log("Thumbnail Base64 Data: ", base64); // Log the thumbnail base64 data
+      thumbNailURLToStore = saveBase64Image(`data:image/png;base64,${base64}`, {
+        projectID,
+        taskID,
+        timestamp: screenshotTimeStamp
+      });
     } else if (thumbNailURL && thumbNailURL.startsWith('data:image')) {
-      // If thumbNailURL is base64 string
-      const sanitizedThumbNailURL = thumbNailURL.replace(/^data:image\/[a-zA-Z]+;base64,/, ''); // Remove prefix
-      thumbNailURLToStore = saveBase64Image(`data:image/png;base64,${sanitizedThumbNailURL}`);
+      const base64 = thumbNailURL.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+      console.log("Thumbnail Base64 URL Data: ", base64); // Log the base64 URL data
+      thumbNailURLToStore = saveBase64Image(`data:image/png;base64,${base64}`, {
+        projectID,
+        taskID,
+        timestamp: screenshotTimeStamp
+      });
     } else if (thumbNailURL) {
       const base64 = await fetchImageAsBase64(thumbNailURL);
-      thumbNailURLToStore = saveBase64Image(`data:image/png;base64,${base64}`);
+      console.log("Thumbnail Base64 Fetched Data: ", base64); // Log the fetched base64 data
+      thumbNailURLToStore = saveBase64Image(`data:image/png;base64,${base64}`, {
+        projectID,
+        taskID,
+        timestamp: screenshotTimeStamp
+      });
     }
 
     // Sanitize undefined parameters by replacing them with null
@@ -176,15 +235,6 @@ router.post('/', upload.fields([
     res.status(500).json({ error: 'Database insert failed', details: err.message });
   }
 });
-
-// Helper to ensure valid JSON
-function tryParseJson(data) {
-  try {
-    return typeof data === 'string' ? JSON.stringify(JSON.parse(data)) : JSON.stringify(data);
-  } catch (e) {
-    return JSON.stringify({});
-  }
-}
 
 // GET route: retrieve work logs by user and date
 router.get('/', async (req, res) => {
