@@ -5,7 +5,7 @@ const bodyParser = require('body-parser');  // Import body-parser for size limit
 const multer = require('multer');           // Import multer for file upload handling
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // 1. Built-in / third-party middleware
 app.use(cors());                   // enable CORS
