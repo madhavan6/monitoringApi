@@ -7,6 +7,7 @@ const multer = require('multer');           // Import multer for file upload han
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+
 // 1. Built-in / third-party middleware
 app.use(cors());                   // enable CORS
 app.use(express.json({ limit: '10mb' }));  // Increase limit for JSON payloads (adjust as needed)
@@ -42,8 +43,14 @@ const upload = multer({
 const workDiaryRoutes = require('./routes/workDiary');
 app.use('/api/workdiary', workDiaryRoutes);
 
+// 5.5. Redirect /ma/backend to workDiary handler
+const workDiaryHandler = require('./routes/workDiary');
+app.use('/ma/backend', workDiaryHandler);
+
+
 // 5. (Optional) root route
 app.get('/', (req, res) => res.send('Employee Monitoring API is running'));
+
 
 // 6. Start server
 app.listen(PORT, '0.0.0.0', () => {
